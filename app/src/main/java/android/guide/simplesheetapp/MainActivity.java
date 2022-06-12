@@ -11,7 +11,7 @@ package android.guide.simplesheetapp;
 //    2- list view {custom Array adapter}
 //    3- send through Activity {from ProductAdapter to EditProduct,
 //                          and from EditProduct to ProductAdapter}
-//    4-
+
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.room.Room;
 
@@ -27,12 +27,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String EXTRA_MESSAGE = "android.guide.simplesheetapp.MESSAGE";
 
     Button button;
     ListView listView;
     List<Product> productList;
     ProductAdapter productAdapter;
+    Bundle saveMesBundle, deleteMsgBundle, updateMsgBundle;
+    ProductDAO productDAO;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,9 +42,15 @@ public class MainActivity extends AppCompatActivity {
         button = findViewById(R.id.addBtn);
         listView = findViewById(R.id.listView);
         Intent intent = getIntent();
-        Bundle save_message = intent.getBundleExtra(EditProduct.SAVE_PRODUCT_MSG);
-        Bundle delete_message = intent.getBundleExtra(EditProduct.DELETE_PRODUCT_MSG);
-        Bundle update_message = intent.getBundleExtra(EditProduct.UPDATE_PRODUCT_MSG);
+        saveMesBundle = intent.getBundleExtra(EditProduct.SAVE_PRODUCT_MSG);
+        deleteMsgBundle = intent.getBundleExtra(EditProduct.DELETE_PRODUCT_MSG);
+        updateMsgBundle = intent.getBundleExtra(EditProduct.UPDATE_PRODUCT_MSG);
+
+// TODO 6.1 initialize the database
+        ProductDB productDB = Room.databaseBuilder(getApplicationContext(),
+                ProductDB.class, "product").allowMainThreadQueries().build();
+// TODO 6.2 declare the dao to interact with the database
+        productDAO = productDB.productDAO();
 
 
 
@@ -51,61 +58,75 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Intent intent = new Intent(MainActivity.this, EditProduct.class);
-                String activityType = "add";
-                intent.putExtra(EXTRA_MESSAGE,activityType);
                 startActivity(intent);
             }
         });
-
-        ProductDB productDB = Room.databaseBuilder(getApplicationContext(),
-                ProductDB.class, "product").allowMainThreadQueries().build();
-
-        ProductDAO productDAO = productDB.productDAO();
-
-        if (save_message!= null) {
-            Log.d("TAG", "onCreate: SAVE msg "+save_message);
-            Product p = new Product();
-            p.name = save_message.getString("name");
-            p.price = save_message.getInt("price");
-            p.stock = save_message.getInt("stock");
-            productDAO.insertProduct(p);
+//  TODO 8.1 IF RECEIVE A BUNDLE FROM EditProduct Activity TO INSERT A ROW IN DATABASE
+        if (saveMesBundle!= null) {
+            insertRow();
         }
-        if (delete_message!= null) {
-            Log.d("TAG", "onCreate: DELETE msg "+delete_message);
-            Product p = new Product();
-            p.name = delete_message.getString("name");
-            p.price = delete_message.getInt("price");
-            p.stock = delete_message.getInt("stock");
-            int msg = productDAO.deleteById(delete_message.getInt("id"));
-            if(msg == 0){
-                Toast.makeText(MainActivity.this,"sorry fail",Toast.LENGTH_SHORT).show();
-            }
-            else{
-                Toast.makeText(MainActivity.this,"success delete ",Toast.LENGTH_SHORT).show();
-            }
+        //  TODO 8.2 IF RECEIVE A BUNDLE FROM EditProduct Activity TO DELETE A ROW IN DATABASE
+        if (deleteMsgBundle!= null) {
+            deleteRow();
+        }
+        //  TODO 8.3 IF RECEIVE A BUNDLE FROM EditProduct Activity TO UPDATE A ROW IN DATABASE
+        if (updateMsgBundle!= null) {
+            updateRow();
         }
 
-        if (update_message!= null) {
-            Product p = new Product();
-
-            p.name = update_message.getString("name");
-            p.price = update_message.getInt("price");
-            p.stock = update_message.getInt("stock");
-
-            int msg = productDAO.editById(update_message.getInt("id"),p.name,p.price,p.stock);
-            if(msg == 0){
-                Toast.makeText(MainActivity.this,"sorry fail",Toast.LENGTH_SHORT).show();
-            }
-            else{
-                Toast.makeText(MainActivity.this,"success update ",Toast.LENGTH_SHORT).show();
-            }
-        }
-
+        // TODO 7 CHECK IF THE DATABASE IS EMPTY OR NOT TO DISPLAY THE ITEM IN LISTVIEW
+//            this must be the bottom of all code above to be updated everytime
+//            that database has delete, insert or update.
         if(productDAO.getAll()!=null){
-            productList = new ArrayList<Product>();
-            productList = productDAO.getAll();
-            productAdapter = new ProductAdapter(MainActivity.this,productList);
-            listView.setAdapter(productAdapter);
+            setListView();
+        }
+
+    }
+
+    public void setListView(){
+        productList = new ArrayList<Product>();
+//        get all item of products as an arraylist
+        productList = productDAO.getAll();
+//        declare adapter
+        productAdapter = new ProductAdapter(MainActivity.this,productList);
+//        set adapter to list view
+        listView.setAdapter(productAdapter);
+    }
+
+    public void insertRow(){
+        Product p = new Product();
+        p.name = saveMesBundle.getString("name");
+        p.price = saveMesBundle.getInt("price");
+        p.stock = saveMesBundle.getInt("stock");
+        productDAO.insertProduct(p);
+        Toast.makeText(MainActivity.this,String.format("inserting %s success", p.name),Toast.LENGTH_SHORT).show();
+
+    }
+
+    public void updateRow(){
+        Product p = new Product();
+        p.name = updateMsgBundle.getString("name");
+        p.price = updateMsgBundle.getInt("price");
+        p.stock = updateMsgBundle.getInt("stock");
+
+        int msg = productDAO.editById(updateMsgBundle.getInt("id"),p.name,p.price,p.stock);
+        if(msg == 0){
+
+            Toast.makeText(MainActivity.this,String.format("updating %s fail", p.name),Toast.LENGTH_SHORT).show();
+        }
+        else{
+            Toast.makeText(MainActivity.this,String.format("updating %s success", p.name),Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    public void deleteRow(){
+        int msg = productDAO.deleteById(deleteMsgBundle.getInt("id"));
+        String name = deleteMsgBundle.getString("name");
+        if(msg == 0){
+            Toast.makeText(MainActivity.this,String.format("deleting %s fail", name),Toast.LENGTH_SHORT).show();
+        }
+        else{
+            Toast.makeText(MainActivity.this,String.format("deleting %s success", name),Toast.LENGTH_SHORT).show();
         }
     }
 
